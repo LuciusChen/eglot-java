@@ -1458,7 +1458,7 @@ DESTINATION-DIR is the directory where the LSP server will be installed."
 
 (defvar eglot-java-jdt-uri-handling-patch-applied nil "Whether or not JDT uri handling is already patched.")
 
-(defun eglot-java--wrap-legacy-eglot--path-to-uri (original-fn &rest args)
+(defun eglot-java--wrap-legacy-eglot-path-to-uri (original-fn &rest args)
   "Hack until eglot is updated.
 ARGS is a list with one element, a file path or potentially a URI.
 If path is a jar URI, don't parse. If it is not a jar call ORIGINAL-FN."
@@ -1483,10 +1483,10 @@ handle it. If it is not a jar call ORIGINAL-FN."
   (interactive) ;; TODO Remove when eglot is updated in melpa
   ;; See also https://debbugs.gnu.org/cgi/bugreport.cgi?bug=58790
   ;; See also https://git.savannah.gnu.org/gitweb/?p=emacs.git;a=blob;f=lisp/progmodes/eglot.el#l1558
-  (unless (or (and (advice-member-p #'eglot-java--wrap-legacy-eglot--path-to-uri 'eglot-path-to-uri)
+  (unless (or (and (advice-member-p #'eglot-java--wrap-legacy-eglot-path-to-uri 'eglot-path-to-uri)
                    (advice-member-p #'eglot-java--wrap-legacy-eglot--uri-to-path 'eglot--uri-to-path))
               (<= 29 emacs-major-version))
-    (advice-add 'eglot-path-to-uri :around #'eglot-java--wrap-legacy-eglot--path-to-uri)
+    (advice-add 'eglot-path-to-uri :around #'eglot-java--wrap-legacy-eglot-path-to-uri)
     (advice-add 'eglot--uri-to-path :around #'eglot-java--wrap-legacy-eglot--uri-to-path)
     (message "[eglot-java--jdthandler-patch-eglot] Eglot successfully patched.")))
 
