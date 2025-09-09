@@ -321,7 +321,7 @@ ones and overrule settings in the other lists."
                           (:classFileContentsSupport t)
                           :workspaceFolders
                           [,@(cl-delete-duplicates
-                              (mapcar #'eglot--path-to-uri
+                              (mapcar #'eglot-path-to-uri
                                       (let* ((root (project-root (eglot--project server))))
                                         (cons root
                                               (mapcar
@@ -332,13 +332,13 @@ ones and overrule settings in the other lists."
                                                 (file-expand-wildcards (concat root "/*" eglot-java-filename-build-gradle-kotlin))
                                                 (file-expand-wildcards (concat root "/.project")))))))
                               :test #'string=)]
-                          ,@(if-let ((home (or eglot-java-java-home
-                                               (getenv "JAVA_HOME")
-                                               (ignore-errors
-                                                 (expand-file-name
-                                                  ".."
-                                                  (file-name-directory
-                                                   (file-chase-links (executable-find "javac"))))))))
+                          ,@(if-let* ((home (or eglot-java-java-home
+                                                (getenv "JAVA_HOME")
+                                                (ignore-errors
+                                                  (expand-file-name
+                                                   ".."
+                                                   (file-name-directory
+                                                    (file-chase-links (executable-find "javac"))))))))
                                 `(:settings (:java
                                              (:home ,home)
                                              :import
@@ -419,10 +419,10 @@ If INTERACTIVE, prompt user for details."
               "-configuration" config
               "-data" workspace))))))
 
-(cl-defmethod eglot-execute-command
-    ((_server eglot-java-eclipse-jdt) (_cmd (eql java.apply.workspaceEdit)) arguments)
+(cl-defmethod eglot-execute
+  ((server eglot-java-eclipse-jdt) (action (eql java.apply.workspaceEdit)))
   "Eclipse JDT breaks spec and replies with edits as arguments."
-  (mapc #'eglot--apply-workspace-edit arguments))
+  (mapc #'eglot--apply-workspace-edit (plist-get action :arguments)))
 
 (defun eglot-java--file-read-trim (file-to-read)
   "Read contents of a file into a string removing any new lines or whitespace.
@@ -532,18 +532,19 @@ Otherwise the basename of the folder ROOT will be returned."
 
 (defun eglot-java--file--test-p (file-path)
   "Tell if a file located at FILE-PATH is a test class."
-  (eglot-execute-command
-   (eglot-java--find-server)
-   "java.project.isTestFile"
-   (vector (eglot--path-to-uri file-path))))
+  (let ((server (eglot-java--find-server))
+        (command "java.project.isTestFile")
+        (arguments (vector (eglot-path-to-uri file-path))))
+    (eglot-execute server `(:command ,command :arguments ,arguments))))
 
 (defun eglot-java--project-classpath (filename scope)
   "Return the classpath for a given FILENAME and SCOPE."
-  (plist-get (eglot-execute-command (eglot-java--find-server)
-                                    "java.project.getClasspaths"
-                                    (vector (eglot--path-to-uri filename)
-                                            (json-encode `(("scope" . ,scope)))))
-             :classpaths))
+  (let ((server (eglot-java--find-server))
+        (command "java.project.getClasspaths")
+        (arguments (vector (eglot-path-to-uri filename)
+                           (json-encode `(("scope" . ,scope))))))
+    (plist-get (eglot-execute server `(:command ,command :arguments ,arguments))
+               :classpaths)))
 
 (defun eglot-java-file-new ()
   "Create a new class."
@@ -558,9 +559,7 @@ Otherwise the basename of the folder ROOT will be returned."
                                                   "Annotation" "public @interface %s {\n\n}"
                                                   "Test"       "import org.junit.jupiter.api.Assertions;\n
 import org.junit.jupiter.api.Test;\n\npublic class %s {\n\n}")))
-         (source-list       (eglot-execute-command
-                             (eglot-java--find-server)
-                             "java.project.listSourcePaths" (list)))
+         (source-list (eglot-execute server `(:command ,command :arguments ,arguments)))
          (source-paths      (mapcar
                              #'identity
                              (car  (cl-remove-if-not #'vectorp source-list))))
@@ -603,7 +602,7 @@ import org.junit.jupiter.api.Test;\n\npublic class %s {\n\n}")))
 ACC represents the string accumulator holding the class name hierarchy, not prefixed with the package name.
 SYMS represents the document symbols.
 IDX represents the current index being traversed in the list of document symbols.
-ELT-TYPE represents the symbol type name to find, which is 'Class'.
+ELT-TYPE represents the symbol type name to find, which is \='Class'.
 CURSOR-LOCATION represents a property list with the line information."
   (if (> (length syms) idx)
       (let* ((elt          (aref syms idx))
@@ -650,7 +649,7 @@ CURSOR-LOCATION represents a property list with the line information."
          (package-name (eglot-java--symbol-name-for-type syms "Package"))
          (class-name   (eglot-java--do-find-nearest-class-at-point nil syms 0 "Class" (list :line line-current))))
     (when class-name
-      (when-let ((method-name (eglot-java--do-find-nearest-method-at-point syms 0 "Method" (list :line line-current))))
+      (when-let* ((method-name (eglot-java--do-find-nearest-method-at-point syms 0 "Method" (list :line line-current))))
         (format "%s%s%s#%s"
                 package-name
                 (if (= (length package-name) 0)
@@ -796,7 +795,7 @@ debug mode."
   (jsonrpc-request
    (eglot-java--find-server)
    :textDocument/documentSymbol
-   (list :textDocument (list :uri (eglot--path-to-uri (buffer-file-name))))))
+   (list :textDocument (list :uri (eglot-path-to-uri (buffer-file-name))))))
 
 (defun eglot-java--get-initializr-json (url accept-header)
   "Retrieve the Spring initializr JSON model from a given URL and ACCEPT-HEADER."
@@ -1484,10 +1483,10 @@ handle it. If it is not a jar call ORIGINAL-FN."
   (interactive) ;; TODO Remove when eglot is updated in melpa
   ;; See also https://debbugs.gnu.org/cgi/bugreport.cgi?bug=58790
   ;; See also https://git.savannah.gnu.org/gitweb/?p=emacs.git;a=blob;f=lisp/progmodes/eglot.el#l1558
-  (unless (or (and (advice-member-p #'eglot-java--wrap-legacy-eglot--path-to-uri 'eglot--path-to-uri)
+  (unless (or (and (advice-member-p #'eglot-java--wrap-legacy-eglot--path-to-uri 'eglot-path-to-uri)
                    (advice-member-p #'eglot-java--wrap-legacy-eglot--uri-to-path 'eglot--uri-to-path))
               (<= 29 emacs-major-version))
-    (advice-add 'eglot--path-to-uri :around #'eglot-java--wrap-legacy-eglot--path-to-uri)
+    (advice-add 'eglot-path-to-uri :around #'eglot-java--wrap-legacy-eglot--path-to-uri)
     (advice-add 'eglot--uri-to-path :around #'eglot-java--wrap-legacy-eglot--uri-to-path)
     (message "[eglot-java--jdthandler-patch-eglot] Eglot successfully patched.")))
 
@@ -1512,8 +1511,8 @@ return the first one."
          (project-func-name-new          (concat "eglot-java--project-new-" project-type))
          (project-func-name-startercache (concat "eglot-java--project-startercache-" project-type))
          (starterkit-info                (gethash project-type eglot-java-starterkits-info-by-starterkit-name)))
-    (when-let ((starterkit-url      (plist-get starterkit-info :url))
-               (starterkit-metadata (plist-get starterkit-info :metadata)))
+    (when-let* ((starterkit-url      (plist-get starterkit-info :url))
+                (starterkit-metadata (plist-get starterkit-info :metadata)))
       (when (hash-table-empty-p starterkit-metadata)
         (let ((metadata-cache (funcall (intern project-func-name-startercache) starterkit-url)))
           (maphash (lambda (k v)
