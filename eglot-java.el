@@ -232,6 +232,11 @@ the package name."
   :type 'boolean
   :group 'eglot-java)
 
+(defcustom eglot-java-default-task "test"
+  "Default task and parameters for `eglot-java-project-build-task`."
+  :type 'string
+  :group 'eglot-java)
+
 (defconst eglot-java-filename-build-maven            "pom.xml"                   "Maven build file name.")
 (defconst eglot-java-filename-build-gradle-groovy    "build.gradle"              "Gradle build file name with Groovy.")
 (defconst eglot-java-filename-build-gradle-kotlin    "build.gradle.kts"          "Gradle build file name with Kotlin.")
@@ -1259,7 +1264,7 @@ debug mode."
   "Run a new build task."
   (interactive)
   (let* ((project-dir               (project-root (project-current)))
-         (goal                      (read-string "Task & Parameters: " "test"))
+         (goal                      (read-string "Task & Parameters: " eglot-java-default-task))
          (project-is-gradle-project (eglot-java--project-gradle-p project-dir))
          (build-filename            (if project-is-gradle-project
                                         (if (file-exists-p (expand-file-name eglot-java-filename-build-gradle-kotlin project-dir))
