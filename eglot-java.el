@@ -1501,7 +1501,7 @@ current project. In the strange event that there are multiple,
 return the first one."
   (when-let* ((project (project-current))
               (servers (gethash project eglot--servers-by-project)))
-    (cl-find-if #'eglot-java-eclipse-jdt-p servers)))
+    (cl-find-if #'eglot-lsp-server-p servers)))
 
 ;;;###autoload
 (defun eglot-java-project-new ()
